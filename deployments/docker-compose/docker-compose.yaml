@@ -9,6 +9,8 @@ services:
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - 5432:5432
+    networks:
+      - backend
     environment:
       POSTGRES_HOST_AUTH_METHOD: "trust"
 #  clicker:
@@ -38,6 +40,10 @@ services:
       - 8082:8082
     expose:
       - 8082
+    networks:
+      - backend
+    depends_on:
+      - the-coffee-machine
     command: ["opentelemetry-instrument", "the-coffee-bar",
               "--host=the-coffee-bar", "--port=8082", "--coffeemachine-host=the-coffee-machine",
               "--coffeemachine-port=8083", "--cashdesk-host=the-cashdesk", "--cashdesk-port=8084"]
@@ -55,6 +61,8 @@ services:
       - 3000:3000
     expose:
       - 3000
+    networks:
+      - backend
     command: |
       /bin/bash -c "python3 ./cpu_killer/cpu_killer.py & \
        npm start"
@@ -76,9 +84,12 @@ services:
     hostname: the-coffee-machine
     ports:
       - 8083:8083
+    networks:
+      - backend
+    depends_on:
+      - machine-svc
     command: ["opentelemetry-instrument", "python3", "src/bin/the_coffee_machine.py",
-              "--host=the-coffee-machine", "--port=8083", "--machine-svc-host=machine-svc",
-              "--machine-svc-port=9090"]
+              "--host=the-coffee-machine", "--port=8083", "--machine-svc-host=machine-svc","--cpu-increase-cron=0 * * * *", "--cpu-increase-duration=5","--cpu-increase-threads=475","--machine-svc-port=9090"]
     environment:
       - OTEL_EXPORTER=otlp
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otelcol:4317
@@ -89,6 +100,8 @@ services:
     hostname: the-cashdesk
     ports:
       - 8084:8084
+    networks:
+      - backend
     command: ["opentelemetry-instrument", "python3", "src/bin/the_cashdesk.py",
               "--host=the-cashdesk", "--port=8084", "--calculator-host=calculator-svc", "--calculator-port=8090",
               "--connection-string=postgresql://account:account@postgres:5432/account"]
@@ -99,6 +112,8 @@ services:
   the-coffee-lover:
     image: sumo/the-coffee-bar-app:python-apps-1.5.0-0.24b0
     container_name: the-coffee-lover
+    networks:
+      - backend
     hostname: the-coffee-lover
     command: ["opentelemetry-instrument", "python3", "src/bin/the_coffee_lover.py",
               "--host=the-coffee-bar", "--port=8082", "--ratio=1"]
@@ -112,6 +127,8 @@ services:
     hostname: machine-svc
     ports:
       - 9090:9090
+    networks:
+      - backend
     command: ["ruby", "/app/lib/machine.rb"]
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otelcol:55681
@@ -123,6 +140,8 @@ services:
     hostname: coffee-svc
     ports:
       - 9091:9091
+    networks:
+      - backend
     command: ["ruby", "/app/lib/coffee.rb"]
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otelcol:55681
@@ -134,6 +153,8 @@ services:
     hostname: water-svc
     ports:
       - 9092:9092
+    networks:
+      - backend
     command: ["ruby", "/app/lib/water.rb"]
     environment:
       - OTEL_EXPORTER=otlp
@@ -141,9 +162,11 @@ services:
       - OTEL_EXPORTER_OTLP_INSECURE=true
       - OTEL_RESOURCE_ATTRIBUTES=application=tcb-local,service.name=water-svc
   calculator-svc:
-    image: sumo/the-coffee-bar-app:calculator-dotnet-1.1.0-1.0.0rc7
+    image: sumo/the-coffee-bar-app:calculator-dotnet-1.1.0b4-1.0.0rc5
     container_name: calculator-svc
     hostname: calculator-svc
+    networks:
+      - backend
     command: ["dotnet", "dotnet-core-calculator-svc.dll", "http://calculator-svc:8090"]
     environment:
       - EXPORTER=otlp
@@ -155,6 +178,8 @@ services:
     image: public.ecr.aws/sumologic/opentelemetry-collector:latest
     container_name: otelcol
     hostname: otelcol
+    networks:
+      - backend
     command: ["--config=/etc/otel-collector-config_otlp.yaml"]
     volumes:
         - ./otelcol.yaml:/etc/otel-collector-config_otlp.yaml
@@ -166,12 +191,18 @@ services:
       - "55681:55681"
       - "14268:14268"
       - "9411:9411"
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    container_name: jaeger
-    hostname: jaeger
-    ports:
-      - "16686:16686"
-      - "14250:14250"
-    expose:
-      - 16686
+  #jaeger:
+  #  image: jaegertracing/all-in-one:latest
+  #  container_name: jaeger
+  #  hostname: jaeger
+  #  ports:
+  #    - "16686:16686"
+  #    - "14250:14250"
+  #  networks:
+  #    - backend
+  #  expose:
+  #    - 16686
+
+networks:
+  backend:
+    driver: bridge

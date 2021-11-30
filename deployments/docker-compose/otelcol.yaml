@@ -33,12 +33,13 @@ extensions:
   health_check: {}
 exporters:
   logging:
-    loglevel: debug
-  jaeger:
-    endpoint: jaeger:14250
-    insecure: true
-#  otlphttp:
-#    traces_endpoint: ""
+    loglevel: debug 
+  #jaeger:
+  #  endpoint: jaeger:14250
+  #  insecure: true
+  otlphttp:
+    # Partner Demo Org
+    traces_endpoint: "https://endpoint1.collection.us2.sumologic.com/receiver/v1/trace/ZaVnC4dhaV1Sc6lvDu7zPiFtSziY7hsNvSNmlix6wX45816hWCeqnafQmNOhqiKEyoG4vvrxzM4ftkrROcQ9F6CrmIiUABuBJLJnyKsHqTmHGGbJRjdK9g=="
 
 service:
   extensions: [health_check]
@@ -46,7 +47,7 @@ service:
     traces:
       receivers: [jaeger, otlp, zipkin]
       processors: [memory_limiter]
-      exporters: [logging, jaeger, otlphttp]
+      exporters: [logging, otlphttp]
     metrics:
       receivers: [otlp]
       exporters: [logging]
